@@ -1,0 +1,24 @@
+[Unit]
+Description=my shared bucket — LAN file drop
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+# --- edit these two lines to match your install ---
+User=__USER__
+WorkingDirectory=__APPDIR__
+# --------------------------------------------------
+Environment=HOST=0.0.0.0
+Environment=PORT=8000
+Environment=SHARE_DIR=__APPDIR__/storage
+ExecStart=/usr/bin/python3 __APPDIR__/app.py
+Restart=on-failure
+RestartSec=3
+
+# Light hardening (still allows full read/write to the storage dir)
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

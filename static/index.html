@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#0b1220">
+  <title>my shared bucket</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true">
+        <path fill="currentColor" d="M10 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-8l-2-2z"/>
+      </svg>
+      <span>my shared bucket</span>
+    </div>
+    <div class="actions">
+      <button id="newFolderBtn" class="btn ghost" title="New folder">New folder</button>
+      <button id="uploadBtn" class="btn" title="Upload files">Upload</button>
+      <input id="fileInput" type="file" multiple hidden>
+    </div>
+  </header>
+
+  <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
+
+  <main id="dropzone" class="dropzone">
+    <div class="table-head">
+      <span class="col-name">Name</span>
+      <span class="col-size">Size</span>
+      <span class="col-mod">Modified</span>
+      <span class="col-act"></span>
+    </div>
+    <ul id="fileList" class="file-list"></ul>
+    <div id="empty" class="empty" hidden>
+      <div class="empty-art">⤓</div>
+      <p>Drag files or folders here, or use <strong>Upload</strong>.</p>
+    </div>
+
+    <div id="dropOverlay" class="drop-overlay" hidden>
+      <div class="drop-card">Drop to upload here</div>
+    </div>
+  </main>
+
+  <footer class="statusbar">
+    <span id="diskInfo"></span>
+  </footer>
+
+  <div id="uploads" class="uploads" hidden>
+    <div class="uploads-head">
+      <span id="uploadsTitle">Uploading…</span>
+      <button id="uploadsClose" class="x" title="Dismiss">×</button>
+    </div>
+    <ul id="uploadList"></ul>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

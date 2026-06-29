@@ -1,0 +1,19 @@
+# Uploaded files — never commit user data
+/storage/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# Local editor / OS cruft
+.vscode/
+.idea/
+.DS_Store
+*.swp
+
+# Runtime / logs
+*.log
+*.part
