@@ -25,9 +25,20 @@
 
   <nav class="crumbs" id="crumbs" aria-label="Breadcrumb"></nav>
 
+  <div id="selbar" class="selbar" hidden>
+    <span id="selCount">0 selected</span>
+    <div class="sel-actions">
+      <button id="zipBtn" class="btn">Download as ZIP</button>
+      <button id="bulkDeleteBtn" class="btn ghost">Delete</button>
+      <button id="clearSelBtn" class="btn ghost">Clear</button>
+    </div>
+  </div>
+
   <main id="dropzone" class="dropzone">
     <div class="table-head">
-      <span class="col-name">Name</span>
+      <label class="col-name head-name">
+        <input type="checkbox" id="selectAll" title="Select all"> Name
+      </label>
       <span class="col-size">Size</span>
       <span class="col-mod">Modified</span>
       <span class="col-act"></span>

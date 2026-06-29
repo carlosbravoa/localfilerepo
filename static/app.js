@@ -9,6 +9,8 @@ const emptyState = $("empty");
 const diskInfo = $("diskInfo");
 
 let cwd = ""; // current folder, relative to share root
+let currentItems = []; // items shown in the current folder
+const selected = new Set(); // selected item paths
 
 // --------------------------------------------------------------------------- //
 // Helpers
@@ -62,6 +64,7 @@ function toast(msg, isError) {
 // --------------------------------------------------------------------------- //
 async function load(path) {
   cwd = path || "";
+  selected.clear(); // selection is scoped to the folder being viewed
   let data;
   try {
     const r = await fetch(`/api/list?path=${encodeURIComponent(cwd)}`);
@@ -104,6 +107,7 @@ function renderCrumbs() {
 }
 
 function renderList(items) {
+  currentItems = items;
   fileList.innerHTML = "";
   emptyState.hidden = items.length > 0;
   for (const it of items) {
@@ -112,8 +116,20 @@ function renderList(items) {
 
     const nameCell = document.createElement("div");
     nameCell.className = "name-cell " + (it.is_dir ? "folder" : "file");
-    nameCell.innerHTML = svgIcon(it.is_dir ? "folder" : "file") +
-      `<span class="label"></span>`;
+
+    const check = document.createElement("input");
+    check.type = "checkbox";
+    check.className = "row-check";
+    check.checked = selected.has(it.path);
+    check.onchange = () => {
+      if (check.checked) selected.add(it.path);
+      else selected.delete(it.path);
+      updateSelbar();
+    };
+    nameCell.appendChild(check);
+
+    nameCell.insertAdjacentHTML("beforeend",
+      svgIcon(it.is_dir ? "folder" : "file") + `<span class="label"></span>`);
     nameCell.querySelector(".label").textContent = it.name;
     if (it.is_dir) {
       nameCell.querySelector(".label").onclick = () => load(it.path);
@@ -143,7 +159,78 @@ function renderList(items) {
     li.append(nameCell, sizeCell, modCell, actions);
     fileList.appendChild(li);
   }
+  updateSelbar();
 }
+
+// --------------------------------------------------------------------------- //
+// Multi-select: ZIP download & bulk delete
+// --------------------------------------------------------------------------- //
+const selbar = $("selbar");
+const selectAll = $("selectAll");
+
+function updateSelbar() {
+  const n = selected.size;
+  selbar.hidden = n === 0;
+  $("selCount").textContent = `${n} selected`;
+  selectAll.checked = n > 0 && n === currentItems.length;
+  selectAll.indeterminate = n > 0 && n < currentItems.length;
+}
+
+selectAll.onchange = () => {
+  selected.clear();
+  if (selectAll.checked) currentItems.forEach((it) => selected.add(it.path));
+  // re-tick the visible checkboxes without a full reload
+  document.querySelectorAll(".row-check").forEach((c, i) => {
+    c.checked = selectAll.checked;
+  });
+  updateSelbar();
+};
+
+$("clearSelBtn").onclick = () => {
+  selected.clear();
+  document.querySelectorAll(".row-check").forEach((c) => (c.checked = false));
+  updateSelbar();
+};
+
+$("zipBtn").onclick = () => {
+  if (!selected.size) return;
+  // A form POST lets the browser stream the zip straight to a download,
+  // and avoids any URL-length limit when many files are selected.
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/api/zip";
+  for (const p of selected) {
+    const input = document.createElement("input");
+    input.type = "hidden";
+    input.name = "path";
+    input.value = p;
+    form.appendChild(input);
+  }
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+};
+
+$("bulkDeleteBtn").onclick = async () => {
+  const paths = [...selected];
+  if (!paths.length) return;
+  if (!confirm(`Delete ${paths.length} selected item${paths.length === 1 ? "" : "s"}? ` +
+    `Folders are removed with everything inside.`)) return;
+  let failed = 0;
+  for (const path of paths) {
+    try {
+      const r = await fetch("/api/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ path }),
+      });
+      if (!r.ok) failed++;
+    } catch (_) { failed++; }
+  }
+  if (failed) toast(`${failed} item(s) could not be deleted`, true);
+  else toast(`Deleted ${paths.length} item(s)`);
+  load(cwd);
+};
 
 function iconButton(svg, title, onClick, danger) {
   const b = document.createElement("button");

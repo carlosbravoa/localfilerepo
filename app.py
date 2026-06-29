@@ -20,6 +20,7 @@ import shutil
 import socket
 import sys
 import urllib.parse
+import zipfile
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
@@ -50,6 +51,30 @@ def safe_join(rel):
 def rel_of(full):
     rel = os.path.relpath(full, SHARE_DIR)
     return "" if rel == "." else rel.replace(os.sep, "/")
+
+
+class _ChunkedWriter:
+    """Wraps the response stream so a ZipFile can be streamed with HTTP
+    chunked transfer encoding (no temp file, no in-memory buffering, no need
+    to know the final size up front). Deliberately exposes no tell()/seek(),
+    which makes zipfile fall back to its non-seekable streaming mode."""
+
+    def __init__(self, wfile):
+        self.wfile = wfile
+
+    def write(self, data):
+        n = len(data)
+        if n:
+            self.wfile.write(b"%X\r\n" % n)
+            self.wfile.write(data)
+            self.wfile.write(b"\r\n")
+        return n
+
+    def flush(self):
+        self.wfile.flush()
+
+    def close(self):
+        self.wfile.write(b"0\r\n\r\n")
 
 
 # --------------------------------------------------------------------------- #
@@ -120,6 +145,8 @@ class Handler(BaseHTTPRequestHandler):
                 return self._api_delete()
             if path == "/api/rename":
                 return self._api_rename()
+            if path == "/api/zip":
+                return self._api_zip()
             return self._error(HTTPStatus.NOT_FOUND, "not found")
         except ValueError as e:
             return self._error(HTTPStatus.BAD_REQUEST, str(e))
@@ -258,6 +285,65 @@ class Handler(BaseHTTPRequestHandler):
             raise ValueError("a file with that name already exists")
         os.rename(src, dst)
         return self._send_json({"ok": True, "path": rel_of(dst)})
+
+    # ----- API: zip (stream a bundle of files/folders) ------------------- #
+    def _api_zip(self):
+        # Accepts JSON {"paths": [...]} or a form POST with repeated `path=`
+        # fields (the latter lets the browser trigger a native download).
+        length = int(self.headers.get("Content-Length", "0"))
+        raw = self.rfile.read(length) if length else b""
+        ctype = self.headers.get("Content-Type", "")
+        if "application/json" in ctype:
+            paths = (json.loads(raw or b"{}")).get("paths", [])
+        else:
+            paths = urllib.parse.parse_qs(raw.decode("utf-8")).get("path", [])
+
+        # Resolve the selection into a flat list of (file_on_disk, name_in_zip).
+        entries = []
+        for rel in paths:
+            try:
+                full = safe_join(rel)
+            except ValueError:
+                continue
+            if os.path.isdir(full):
+                base = os.path.basename(full.rstrip("/")) or "folder"
+                for root, _dirs, files in os.walk(full):
+                    for fn in files:
+                        fp = os.path.join(root, fn)
+                        arc = os.path.join(base, os.path.relpath(fp, full))
+                        entries.append((fp, arc))
+            elif os.path.isfile(full):
+                entries.append((full, os.path.basename(full)))
+
+        if not entries:
+            return self._error(HTTPStatus.BAD_REQUEST, "nothing to download")
+
+        # Name the archive after a single selected folder, else generically.
+        if len(paths) == 1:
+            zip_name = (os.path.basename(paths[0].rstrip("/")) or "bucket") + ".zip"
+        else:
+            zip_name = "mysharedbucket.zip"
+        disp = "attachment; filename*=UTF-8''" + urllib.parse.quote(zip_name)
+
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/zip")
+        self.send_header("Content-Disposition", disp)
+        self.send_header("Transfer-Encoding", "chunked")
+        self.end_headers()
+
+        writer = _ChunkedWriter(self.wfile)
+        try:
+            # compresslevel=1 keeps large/already-compressed media fast.
+            with zipfile.ZipFile(writer, "w", zipfile.ZIP_DEFLATED,
+                                 allowZip64=True, compresslevel=1) as zf:
+                for fp, arc in entries:
+                    try:
+                        zf.write(fp, arc)
+                    except OSError:
+                        continue  # file vanished/locked mid-zip — skip it
+            writer.close()
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # client cancelled the download
 
     # ----- quieter logging ----------------------------------------------- #
     def log_message(self, fmt, *args):

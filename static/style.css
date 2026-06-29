@@ -14,6 +14,10 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute must always win over component display rules below
+   (e.g. the drop overlay sets display:grid, which would otherwise show it). */
+[hidden] { display: none !important; }
+
 html, body {
   margin: 0;
   height: 100%;
@@ -92,6 +96,32 @@ body {
 .crumbs a:hover { background: var(--panel-2); color: var(--text); }
 .crumbs a.current { color: var(--text); font-weight: 600; }
 .crumbs .sep { opacity: .5; }
+
+/* Selection bar */
+.selbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 16px 12px;
+  padding: 10px 16px;
+  background: var(--panel-2);
+  border: 1px solid var(--accent);
+  border-radius: 10px;
+}
+.selbar #selCount { font-weight: 600; font-size: 14px; }
+.sel-actions { display: flex; gap: 8px; }
+.sel-actions .btn { padding: 7px 13px; font-size: 13px; }
+
+/* Checkboxes */
+.row-check, #selectAll {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+  cursor: pointer;
+  flex: none;
+}
+.head-name { display: flex; align-items: center; gap: 11px; cursor: pointer; }
 
 /* Drop area / table */
 .dropzone {
